@@ -99489,3 +99489,89 @@ Epoch: 0 Episode: 600
 Epsilon Greedy: 0.100000
 Reward: 0.025555
 
+
+************* SAVE FILE 2018-10-21 23:21:33 *************
+Epoch: 0 Episode: 0
+Epsilon Greedy: 0.100000
+Reward: -0.080074
+
+Epoch: 0 Episode: 100
+Epsilon Greedy: 0.100000
+Reward: -0.055560
+
+Epoch: 0 Episode: 200
+Epsilon Greedy: 0.100000
+Reward: 0.044944
+
+Epoch: 0 Episode: 300
+Epsilon Greedy: 0.100000
+Reward: 0.116351
+
+Epoch: 0 Episode: 400
+Epsilon Greedy: 0.100000
+Reward: -0.106811
+
+Epoch: 0 Episode: 500
+Epsilon Greedy: 0.100000
+Reward: -0.155200
+
+
+************* SAVE FILE 2018-10-22 01:10:04 *************
+Epoch: 0 Episode: 0
+Epsilon Greedy: 0.100000
+Reward: -0.080074
+
+
+************* SAVE FILE 2018-10-22 01:12:27 *************
+Epoch: 0 Episode: 0
+Epsilon Greedy: 0.100000
+Reward: -0.189195
+
+
+************* SAVE FILE 2018-10-22 01:28:24 *************
+Epoch: 0 Episode: 0
+Epsilon Greedy: 0.100000
+Reward: -1.000000
+
+
+************* SAVE FILE 2018-10-24 14:22:17 *************
+Epoch: 0 Episode: 0
+Epsilon Greedy: 0.100000
+Reward: 0.032449
+
+Epoch: 0 Episode: 100
+Epsilon Greedy: 0.100000
+Reward: 1.000000
+
+Epoch: 0 Episode: 200
+Epsilon Greedy: 0.100000
+Reward: 0.088799
+
+
+************* SAVE FILE 2018-11-27 23:10:29 *************
+Epoch: 0 Episode: 0
+Epsilon Greedy: 0.100000
+Reward: -0.189195
+
+Epoch: 0 Episode: 100
+Epsilon Greedy: 0.100000
+Reward: -0.014771
+
+Epoch: 0 Episode: 200
+Epsilon Greedy: 0.100000
+Reward: -0.199453
+
+
+************* SAVE FILE 2018-11-27 23:31:23 *************
+
+************* SAVE FILE 2018-11-27 23:33:54 *************
+
+************* SAVE FILE 2018-11-27 23:34:10 *************
+
+************* SAVE FILE 2018-11-27 23:34:20 *************
+
+************* SAVE FILE 2018-11-27 23:36:35 *************
+Epoch: 0 Episode: 0
+Epsilon Greedy: 0.100000
+Reward: -0.080074
+

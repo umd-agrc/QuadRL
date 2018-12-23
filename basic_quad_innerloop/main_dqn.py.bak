@@ -10,10 +10,6 @@ from torch.autograd import Variable
 
 import vrep
 
-
-ROLLOUT_LEN = 5000
-
-
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
@@ -21,15 +17,6 @@ scene_name = 'quad_innerloop.ttt'
 quad_name = 'Quadricopter'
 propellers = ['rotor1thrust', 'rotor2thrust', 'rotor3thrust', 'rotor4thrust']
 
-setpoint_delta = np.array([0.,0.,1.,0.,0.,0.,0.,0.,0.,0.,0.,0.])
-
-# Static vars decorator
-def static_vars(**kwargs):
-    def decorate(func):
-        for k in kwargs:
-            setattr(func, k, kwargs[k])
-        return func
-    return decorate
 
 class ReplayMemory(object):
 
@@ -85,6 +72,7 @@ class DQN(nn.Module):
         return x
 
 
+
 def is_valid_state(pos_start, pos_current, euler_current):
     valid = True
 
@@ -105,75 +93,9 @@ def generate_forces(model, state,learning_rate):
 
     return list( np.sign(state.grad.data[0,-5:-1].numpy()) *1.)
 
-#FIXME this should distribute to motors a la wilselby.com/research/arducopter/controller-design/
-def motor_ctl(ctl):
-    base_thrust = 5.8
-    return [base_thrust + ctl['thrust'] + ctl['pitch'] - ctl['roll'] + ctl['yaw'],
-            base_thrust + ctl['thrust'] - ctl['pitch'] - ctl['roll'] - ctl['yaw'],
-            base_thrust + ctl['thrust'] - ctl['pitch'] + ctl['roll'] + ctl['yaw'],
-            base_thrust + ctl['thrust'] + ctl['pitch'] + ctl['roll'] - ctl['yaw']]
 
-R_psi = lambda x: np.array([[np.cos(x),np.sin(x),0],
-                            [-np.sin(x),np.cos(x),0],
-                            [0,0,1]])
-R_theta = lambda x: np.array([[np.cos(x),0,-np.sin(x)],
-                              [0,1,0],
-                              [np.sin(x),0,np.cos(x)]])
-R_phi = lambda x: np.array([[1,0,0],
-                            [0,np.cos(x),np.sin(x)],
-                            [0,-np.sin(x),np.cos(x)]])
-R_euler = lambda phi,theta,psi: np.matmul(R_phi(phi),
-                                          np.matmul(R_theta(theta),R_psi(psi)))
 
-# rotation matrix from absolute vel in NED frame to body axis vel uvw
-R_vel_body = lambda phi,theta,psi: np.linalg.inv(
-        [[np.cos(theta)*np.cos(psi),
-          np.sin(phi)*np.sin(theta)*np.cos(psi)-np.cos(phi)*np.sin(psi),
-          np.cos(phi)*np.sin(theta)*np.cos(psi)+np.sin(phi)*np.sin(psi)],
-         [np.cos(theta)*np.sin(psi),
-          np.sin(phi)*np.sin(theta)*np.sin(psi)+np.cos(phi)*np.cos(psi),
-          np.cos(phi)*np.sin(theta)*np.sin(psi)-np.sin(phi)*np.cos(psi)],
-         [-np.sin(theta),
-          np.sin(phi)*np.cos(theta),
-          np.cos(phi)*np.cos(theta)]])
 
-R_angvel_body = lambda phi,theta,psi: np.array(
-        [[1, 0, -np.sin(theta)],
-         [0, np.cos(phi), np.sin(phi)*np.cos(theta)],
-         [0, -np.sin(phi), np.cos(phi)*np.cos(theta)]])
-
-# Only PD control bc can't find api function for getting simulation time
-# wilselby.com/research/arducopter/controller-design/
-@static_vars(xi=0,yi=0,zi=0,rolli=0,pitchi=0)
-def pid(pos_error,euler_absolute,yaw_error,vel_error,angvel_error):
-    kp = {'roll' : -3, 'pitch' : -3, 'yaw' : -1,
-          'x' : -2, 'y' : 2, 'z' : 4.5}
-    kd = {'roll' : -0.5, 'pitch' : -0.5, 'yaw' : -0.2,
-          'x' : -0.4, 'y' : 0.4, 'z' : 1.2}
-    ki = {'roll' : 1, 'pitch' : 1, 'yaw' : 1,
-          'x' : 1, 'y' : 1, 'z' : 1}
-    R = R_euler(*euler_absolute)
-    pos_error = np.matmul(R,pos_error)
-    R_vel = R_vel_body(*euler_absolute)
-    vel_error = np.matmul(R_vel,vel_error)
-    R_angvel = R_angvel_body(*euler_absolute)
-    angvel_error = np.matmul(R_angvel,angvel_error)
-    trpy_ctl = {'thrust' : 0, 'roll' : 0, 'pitch' : 0, 'yaw' : 0}
-    trpy_ctl['thrust'] = (1/(np.cos(euler_absolute[0])*np.cos(euler_absolute[1]))) \
-            * (pos_error[2] * kp['z'] + vel_error[2] * kd['z'])
-    #roll_des = kp['y'] * pos_error[0] + kd['y'] * vel_error[0]
-    #pitch_des = kp['x'] * pos_error[1] + kd['x'] * vel_error[1]
-    pitch_des = kp['y'] * pos_error[0] + kd['y'] * vel_error[0]
-    roll_des = kp['x'] * pos_error[1] + kd['x'] * vel_error[1]
-
-    roll_error = roll_des - euler_absolute[0]
-    pitch_error = pitch_des - euler_absolute[1]
-
-    trpy_ctl['roll'] = kp['roll'] * roll_error + kd['roll'] * angvel_error[0]
-    trpy_ctl['pitch'] = kp['pitch'] * pitch_error + kd['pitch'] * angvel_error[1]
-    trpy_ctl['yaw'] = kp['yaw'] * yaw_error + kd['yaw'] * angvel_error[2]
-    ##TODO angle/angle-rate controller
-    return motor_ctl(trpy_ctl)
 
 def apply_forces(forces, delta_forces):
     for i in range(4):
@@ -188,6 +110,9 @@ def reset(clientID):
     vrep.simxStopSimulation(clientID, vrep.simx_opmode_oneshot_wait)
     time.sleep(0.1)
     vrep.simxStartSimulation(clientID, vrep.simx_opmode_blocking)
+
+
+
 
 
 def DQN_update2(model, memory, batch_size, GAMMA, optimizer):
@@ -245,6 +170,8 @@ def DQN_update2(model, memory, batch_size, GAMMA, optimizer):
     optimizer.step()
 
 
+
+
 def vrep_exit(clientID):
     vrep.simxStopSimulation(clientID, vrep.simx_opmode_oneshot_wait)
     vrep.simxFinish(clientID)
@@ -290,7 +217,6 @@ def main():
     # Initialize quadrotor position and orientation
     vrep.simxGetObjectPosition(clientID, quad_handle, -1, vrep.simx_opmode_streaming)
     vrep.simxGetObjectOrientation(clientID, quad_handle, -1, vrep.simx_opmode_streaming)
-    vrep.simxGetObjectVelocity(clientID, quad_handle, vrep.simx_opmode_streaming)
 
     # Start simulation
     vrep.simxStartSimulation(clientID, vrep.simx_opmode_blocking)
@@ -301,54 +227,49 @@ def main():
         vrep.simxClearFloatSignal(clientID, propellers[i], vrep.simx_opmode_oneshot)
 
     # Get quadrotor initial position and orientation
-    err, pos_start = vrep.simxGetObjectPosition(clientID, quad_handle, -1, vrep.simx_opmode_buffer)
-    err, euler_start = vrep.simxGetObjectOrientation(clientID, quad_handle, -1, vrep.simx_opmode_buffer)
-    err, vel_start, angvel_start = vrep.simxGetObjectVelocity(clientID,
-            quad_handle, vrep.simx_opmode_buffer)
+    err, pos_old = vrep.simxGetObjectPosition(clientID, quad_handle, -1, vrep.simx_opmode_buffer)
+    err, euler_old = vrep.simxGetObjectOrientation(clientID, quad_handle, -1, vrep.simx_opmode_buffer)
 
-    pos_start = np.asarray(pos_start)
-    euler_start = np.asarray(euler_start)*10.
-    vel_start = np.asarray(vel_start)
-    angvel_start = np.asarray(angvel_start)*10.
+    pos_old = np.asarray(pos_old)
+    euler_old = np.asarray(euler_old)*10.
 
-    pos_old = pos_start
-    euler_old = euler_start
-    vel_old = vel_start
-    angvel_old = angvel_start
-    pos_new = pos_old
-    euler_new = euler_old
-    vel_new = vel_old
-    angvel_new = angvel_old
+    pos_start = pos_old
 
-    pos_error = (pos_start + setpoint_delta[0:3]) - pos_new
-    euler_error = (euler_start + setpoint_delta[3:6]) - euler_new
-    vel_error = (vel_start + setpoint_delta[6:9]) - vel_new
-    angvel_error = (angvel_start + setpoint_delta[9:12]) - angvel_new
-
-    pos_error_all = pos_error
-    euler_error_all = euler_error
+    # hyper parameters
 
     n_input = 6
     n_forces=4
+    #n_action = 8
+    hidden = 256
+    batch_size = 512
+    learning_rate = .01
+    eps = 0.1
+    gamma = 0.9
+
     init_f=7.
 
+    net = DQN(n_input + n_forces, hidden, 1)
+
+    optim = torch.optim.Adam(net.parameters(), lr=learning_rate)
     state = [0 for i in range(n_input)]
     state = torch.from_numpy(np.asarray(state, dtype=np.float32)).view(-1, n_input)
 
     propeller_vels = [init_f, init_f, init_f, init_f]
-    delta_forces = [0., 0., 0., 0.]
 
     extended_state=torch.cat((state,torch.from_numpy(np.asarray([propeller_vels], dtype=np.float32))),1)
-    memory = ReplayMemory(ROLLOUT_LEN)
-    test_num = 1
-    timestep = 1
+    memory = ReplayMemory(10000)
+
     while (vrep.simxGetConnectionId(clientID) != -1):
 
+        # epsilon greedy
+        r = random.random()
+        if r > eps:
+            delta_forces=generate_forces(net,extended_state,learning_rate)
+        else:
+            delta_forces = [float(random.randint(-1, 1)) for i in range(4)]
         # Set propeller thrusts
         print("Setting propeller thrusts...")
-        # Only PD control bc can't find api function for getting simulation time
-        propeller_vels = pid(pos_error,euler_new,euler_error[2],vel_error,angvel_error)
-        #propeller_vels = apply_forces(propeller_vels, delta_forces) # for dqn
+        propeller_vels = apply_forces(propeller_vels, delta_forces)
 
         # Send propeller thrusts
         print("Sending propeller thrusts...")
@@ -362,17 +283,13 @@ def main():
         # Get quadrotor initial position and orientation
         err, pos_new = vrep.simxGetObjectPosition(clientID, quad_handle, -1, vrep.simx_opmode_buffer)
         err, euler_new = vrep.simxGetObjectOrientation(clientID, quad_handle, -1, vrep.simx_opmode_buffer)
-        err, vel_new, angvel_new = vrep.simxGetObjectVelocity(clientID,
-                quad_handle, vrep.simx_opmode_buffer)
+
 
         pos_new = np.asarray(pos_new)
         euler_new = np.asarray(euler_new)*10
-        vel_start = np.asarray(vel_start)
-        angvel_start = np.asarray(angvel_start)*10.
         #euler_new[2]/=100
 
         valid = is_valid_state(pos_start, pos_new, euler_new)
-
         if valid:
             next_state = torch.FloatTensor(np.concatenate([euler_new, pos_new - pos_old]))
             #next_state = torch.FloatTensor(euler_new )
@@ -382,102 +299,75 @@ def main():
             next_state = None
             next_extended_state = None
 
-        reward=np.float32(0)
+        reward_acc = np.float32(-np.linalg.norm(pos_new - pos_old)) if next_state is not None else np.float32(-10.)
 
+        reward_alpha = np.float32(-np.fabs(euler_new[0])) if not check_quad_flipped(euler_new) else np.float32(-10.)
+        reward_beta = np.float32(-np.fabs( euler_new[1])) if not check_quad_flipped(euler_new) else np.float32(-10.)
+        reward_gamma = np.float32(-np.fabs(euler_new[2])) if not check_quad_flipped(euler_new) else np.float32(-5.)
+
+        reward_alpha_acc = np.float32(-np.fabs(euler_new[0]-euler_old[0])) if not check_quad_flipped(euler_new) else np.float32(-10.)
+        reward_beta_acc = np.float32(-np.fabs( euler_new[1]-euler_old[1])) if not check_quad_flipped(euler_new) else np.float32(-10.)
+        reward_gamma_acc = np.float32(-np.fabs(euler_new[2]-euler_old[2])) if not check_quad_flipped(euler_new) else np.float32(-5.)
+
+        reward = reward_alpha + reward_beta + reward_gamma + reward_acc+  reward_alpha_acc*10. + reward_beta_acc*10. + reward_gamma_acc*10.
+
+        if not check_quad_flipped(euler_new) and not valid:
+            print('Success.')
+            reward=10.
+
+        #reward_pos=-np.linalg.norm(pos_new-pos_start)
+
+
+        if reward <-10.:
+            reward=-10.
+        reward=np.float32(reward)
         memory.push(extended_state, torch.from_numpy(np.asarray([delta_forces],dtype=np.float32)), next_extended_state,
                                 torch.from_numpy(np.asarray([[reward]])))
+
         state = next_state
         extended_state=next_extended_state
         pos_old = pos_new
         euler_old = euler_new
-        print("Propeller Velocities:")
         print(propeller_vels)
         print("\n")
 
-        pos_error = (pos_start + setpoint_delta[0:3]) - pos_new
-        euler_error = (euler_start + setpoint_delta[3:6]) - euler_new
-        euler_error %= 2*np.pi
-        for i in range(len(euler_error)):
-            if euler_error[i] > np.pi:
-                euler_error[i] -= 2*np.pi
-        vel_error = (vel_start + setpoint_delta[6:9]) - vel_new
-        angvel_error = (angvel_start + setpoint_delta[9:12]) - angvel_new
+        # Perform one step of the optimization (on the target network)
 
-        pos_error_all = np.vstack([pos_error_all,pos_error])
-        euler_error_all = np.vstack([euler_error_all,euler_error])
+        #DQN_update2(net, memory, batch_size, gamma, optim)
 
-        print("Errors (pos,ang):")
-        print(pos_error,euler_error)
-        print("\n")
-
-        timestep += 1
-        if not valid or timestep > ROLLOUT_LEN:
-            np.savetxt('csv/pos_error{0}.csv'.format(test_num),
-                       pos_error_all,
-                       delimiter=',',
-                       fmt='%8.4f')
-            np.savetxt('csv/euler_error{0}.csv'.format(test_num),
-                       euler_error_all,
-                       delimiter=',',
-                       fmt='%8.4f')
-
-            print('RESET')
+        if not valid:
+            DQN_update2(net, memory, batch_size, gamma, optim)
+            print('reset')
             # reset
-            vrep.simxStopSimulation(clientID, vrep.simx_opmode_oneshot_wait)
-            time.sleep(0.1)
+            reset(clientID)
+            print("Loading scene...")
+            vrep.simxLoadScene(clientID, scene_name, 0xFF, vrep.simx_opmode_blocking)
 
             # Setup V-REP simulation
             print("Setting simulator to async mode...")
             vrep.simxSynchronous(clientID, True)
-            dt = .001
+            dt = .0005
             vrep.simxSetFloatingParameter(clientID,
                                           vrep.sim_floatparam_simulation_time_step,
                                           dt,  # specify a simulation time step
                                           vrep.simx_opmode_oneshot)
-
-            print("Loading scene...")
-            vrep.simxLoadScene(clientID, scene_name, 0xFF, vrep.simx_opmode_blocking)
-
             # Get quadrotor handle
             err, quad_handle = vrep.simxGetObjectHandle(clientID, quad_name, vrep.simx_opmode_blocking)
 
             # Initialize quadrotor position and orientation
             vrep.simxGetObjectPosition(clientID, quad_handle, -1, vrep.simx_opmode_streaming)
             vrep.simxGetObjectOrientation(clientID, quad_handle, -1, vrep.simx_opmode_streaming)
-            vrep.simxGetObjectVelocity(clientID, quad_handle, vrep.simx_opmode_streaming)
 
             # Start simulation
             vrep.simxStartSimulation(clientID, vrep.simx_opmode_blocking)
 
-            for i in range(len(propellers)):
-                vrep.simxClearFloatSignal(clientID, propellers[i], vrep.simx_opmode_oneshot)
-
-            err, pos_start = vrep.simxGetObjectPosition(clientID, quad_handle, -1, vrep.simx_opmode_buffer)
-            err, euler_start = vrep.simxGetObjectOrientation(clientID, quad_handle, -1, vrep.simx_opmode_buffer)
-            err, vel_start, angvel_start = vrep.simxGetObjectVelocity(clientID,
-                    quad_handle, vrep.simx_opmode_buffer)
-
-            pos_start = np.asarray(pos_start)
-            euler_start = np.asarray(euler_start)*10.
-            vel_start = np.asarray(vel_start)
-            angvel_start = np.asarray(angvel_start)*10.
-
-            pos_old = pos_start
-            euler_old = euler_start
-            vel_old = vel_start
-            angvel_old = angvel_start
-            pos_new = pos_old
-            euler_new = euler_old
-            vel_new = vel_old
-            angvel_new = angvel_old
-
-            pos_error = (pos_start + setpoint_delta[0:3]) - pos_new
-            euler_error = (euler_start + setpoint_delta[3:6]) - euler_new
-            vel_error = (vel_start + setpoint_delta[6:9]) - vel_new
-            angvel_error = (angvel_start + setpoint_delta[9:12]) - angvel_new
-
-            pos_error_all = np.vstack([pos_error_all,pos_error])
-            euler_error_all = np.vstack([euler_error_all,euler_error])
+            # Get quadrotor initial position and orientation
+            err, pos_old = vrep.simxGetObjectPosition(clientID, quad_handle, -1, vrep.simx_opmode_buffer)
+            err, euler_old = vrep.simxGetObjectOrientation(clientID, quad_handle, -1, vrep.simx_opmode_buffer)
+            euler_old=euler_old
+            pos_old = np.asarray(pos_old)
+            euler_old = np.asarray(euler_old)*10.
+            pos_start = pos_old
 
             state = [0 for i in range(n_input)]
             state = torch.FloatTensor(np.asarray(state)).view(-1, n_input)
@@ -486,9 +376,8 @@ def main():
 
             extended_state = torch.cat((state, torch.FloatTensor(np.asarray([propeller_vels]))), 1)
             print('duration: ',len(memory))
-            memory = ReplayMemory(ROLLOUT_LEN)
-            test_num += 1
-            timestep = 1
+            memory = ReplayMemory(10000)
+
 
 if __name__ == '__main__':
     main()

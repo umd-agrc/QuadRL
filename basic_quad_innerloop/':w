@@ -11,7 +11,8 @@ from torch.autograd import Variable
 import vrep
 
 
-ROLLOUT_LEN = 5000
+#ROLLOUT_LEN = 5000
+ROLLOUT_LEN = 100
 
 
 Transition = namedtuple('Transition',
@@ -420,11 +421,9 @@ def main():
                        euler_error_all,
                        delimiter=',',
                        fmt='%8.4f')
-
             print('RESET')
             # reset
-            vrep.simxStopSimulation(clientID, vrep.simx_opmode_oneshot_wait)
-            time.sleep(0.1)
+            reset(clientID)
 
             # Setup V-REP simulation
             print("Setting simulator to async mode...")

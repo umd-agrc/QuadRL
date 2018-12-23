@@ -103,6 +103,7 @@ def envstep(action):
 
     # Send propeller thrusts
     print("Sending propeller thrusts...")
+    print(propeller_vels)
     [vrep.simxSetFloatSignal(clientID, prop, vels, vrep.simx_opmode_oneshot) for prop, vels in
      zip(propellers, propeller_vels)]
 
@@ -186,10 +187,9 @@ def main():
     def update_current_obs(obs):
         shape_dim0 = np.shape(observation_space)[0]
         obs = torch.from_numpy(obs).float()
-        print(np.shape(obs))
         if args.num_stack > 1:
             current_obs[:, :-shape_dim0] = current_obs[:, shape_dim0:]
-        current_obs[:, -shape_dim0:] = obs
+        current_obs[:, -shape_dim0:] = obs.reshape(current_obs[:, -shape_dim0:].shape[1:])
 
     obs = reset()
     update_current_obs(obs)
@@ -213,6 +213,7 @@ def main():
                 Variable(rollouts.states[step], volatile=True),
                 Variable(rollouts.masks[step], volatile=True))
             cpu_actions = action.data.squeeze(1).cpu().numpy()
+            print(action)
 
             # Observe reward and next obs
             obs, reward, done, info = envstep(cpu_actions)

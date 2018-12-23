@@ -22,7 +22,8 @@ class FFPolicy(nn.Module):
         raise NotImplementedError
 
     def act(self, inputs, states, masks, deterministic=False):
-        value, x, states = self(inputs, states, masks)
+        value, x, states = self(inputs.permute(0,2,1), states, masks)
+        print(x)
         action = self.dist.sample(x, deterministic=deterministic)
         action_log_probs, dist_entropy = self.dist.logprobs_and_entropy(x, action)
         return value, action, action_log_probs, states
@@ -180,5 +181,6 @@ class MLPPolicy(FFPolicy):
 
         x = self.a_fc2(x)
         x = F.tanh(x)
+        #TODO should there be a final layer back to 4 motor outputs?
 
         return value, x, states
