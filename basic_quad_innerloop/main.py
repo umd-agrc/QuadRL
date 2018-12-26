@@ -105,7 +105,6 @@ def generate_forces(model, state,learning_rate):
 
     return list( np.sign(state.grad.data[0,-5:-1].numpy()) *1.)
 
-#FIXME this should distribute to motors a la wilselby.com/research/arducopter/controller-design/
 def motor_ctl(ctl):
     base_thrust = 5.8
     return [base_thrust + ctl['thrust'] + ctl['pitch'] - ctl['roll'] + ctl['yaw'],
@@ -286,6 +285,7 @@ def main():
 
     # Get quadrotor handle
     err, quad_handle = vrep.simxGetObjectHandle(clientID, quad_name, vrep.simx_opmode_blocking)
+    print(err,quad_handle)
 
     # Initialize quadrotor position and orientation
     vrep.simxGetObjectPosition(clientID, quad_handle, -1, vrep.simx_opmode_streaming)
@@ -309,7 +309,7 @@ def main():
     pos_start = np.asarray(pos_start)
     euler_start = np.asarray(euler_start)*10.
     vel_start = np.asarray(vel_start)
-    angvel_start = np.asarray(angvel_start)*10.
+    angvel_start = np.asarray(angvel_start)
 
     pos_old = pos_start
     euler_old = euler_start
@@ -367,8 +367,8 @@ def main():
 
         pos_new = np.asarray(pos_new)
         euler_new = np.asarray(euler_new)*10
-        vel_start = np.asarray(vel_start)
-        angvel_start = np.asarray(angvel_start)*10.
+        vel_new = np.asarray(vel_new)
+        angvel_new = np.asarray(angvel_new)
         #euler_new[2]/=100
 
         valid = is_valid_state(pos_start, pos_new, euler_new)
@@ -390,6 +390,8 @@ def main():
         extended_state=next_extended_state
         pos_old = pos_new
         euler_old = euler_new
+        vel_old = vel_new
+        angvel_old = angvel_new
         print("Propeller Velocities:")
         print(propeller_vels)
         print("\n")
